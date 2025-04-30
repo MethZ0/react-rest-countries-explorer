@@ -114,25 +114,24 @@ function HomePage() {
 
   // Apply region and language filters client-side
   useEffect(() => {
-    if (!selectedRegion && !selectedLanguage) return
-    
-    let result = [...filteredCountries]
+    // Start with all fetched countries when applying filters
+    let result = searchTerm ? [...filteredCountries] : [...countries];
 
     if (selectedRegion && selectedRegion !== "all") {
-      result = result.filter(country => country.region === selectedRegion)
+      result = result.filter(country => country.region === selectedRegion);
     }
 
     if (selectedLanguage && selectedLanguage !== "all") {
       result = result.filter(country => {
-        if (!country.languages) return false
+        if (!country.languages) return false;
         return Object.values(country.languages).some(
           lang => lang.toLowerCase() === selectedLanguage.toLowerCase()
-        )
-      })
+        );
+      });
     }
 
-    setFilteredCountries(result)
-  }, [selectedRegion, selectedLanguage])
+    setFilteredCountries(result);
+  }, [selectedRegion, selectedLanguage, searchTerm, countries]);
 
   // Get unique regions for the filter
   const regions = [...new Set(countries.map(country => country.region))].sort()
