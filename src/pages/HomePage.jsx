@@ -3,7 +3,7 @@
 import React from 'react';
 import { useState, useEffect } from "react"
 import CountryCard from "../components/CountryCard"
-import { Loader2, Search, Globe, Languages, SearchX, XCircle } from "lucide-react"
+import { Loader2, Search, Globe, Languages, SearchX, XCircle, Filter, ChevronDown, ChevronUp } from "lucide-react"
 
 function HomePage() {
   const [countries, setCountries] = useState([])
@@ -15,6 +15,7 @@ function HomePage() {
   const [allLanguages, setAllLanguages] = useState([])
   const [selectedLanguage, setSelectedLanguage] = useState("")
   const [searchTimeout, setSearchTimeout] = useState(null)
+  const [showFilters, setShowFilters] = useState(true)
 
   // Fetch all countries or search results
   const fetchCountries = async (name = "") => {
@@ -139,7 +140,7 @@ function HomePage() {
   return (
     <main className="container mx-auto px-4 py-8 min-h-screen animate-fadeIn pt-24">
       {/* Hero Section */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-8 md:mb-12">
         <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
           Countries Explorer
         </h1>
@@ -148,68 +149,84 @@ function HomePage() {
         </p>
       </div>
 
+      {/* Mobile Filter Toggle */}
+      <div className="md:hidden mb-4">
+        <button 
+          onClick={() => setShowFilters(!showFilters)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 text-blue-600 rounded-lg font-medium border border-blue-100 transition-all hover:bg-blue-100"
+        >
+          <span className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </span>
+          {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+      </div>
+
       {/* Filters Section */}
-      <div className="bg-white p-6 rounded-xl shadow-lg mb-8 transition-all duration-300 hover:shadow-xl">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Search Input */}
-          <FilterSection
-            icon={<Search className="h-4 w-4 text-gray-400" />}
-            label="Search by country name"
-            id="search"
-          >
-            <input
-              type="text"
+      <div className={`bg-white rounded-xl shadow-lg mb-6 md:mb-8 transition-all duration-300 hover:shadow-xl ${showFilters ? 'block' : 'hidden md:block'}`}>
+        <div className="p-4 md:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            {/* Search Input */}
+            <FilterSection
+              icon={<Search className="h-4 w-4 text-gray-400" />}
+              label="Search by country name"
               id="search"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 
-                       focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
-                       hover:border-gray-300"
-              placeholder="Search for a country..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </FilterSection>
+            >
+              <input
+                type="text"
+                id="search"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 
+                        focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
+                        hover:border-gray-300 text-base"
+                placeholder="Search for a country..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </FilterSection>
 
-          {/* Region Filter */}
-          <FilterSection
-            icon={<Globe className="h-4 w-4 text-gray-400" />}
-            label="Filter by region"
-            id="region-filter"
-          >
-            <select
+            {/* Region Filter */}
+            <FilterSection
+              icon={<Globe className="h-4 w-4 text-gray-400" />}
+              label="Filter by region"
               id="region-filter"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 
-                       focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
-                       hover:border-gray-300 appearance-none bg-white cursor-pointer"
-              value={selectedRegion}
-              onChange={e => setSelectedRegion(e.target.value)}
             >
-              <option value="all">All regions</option>
-              {regions.map(region => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-          </FilterSection>
+              <select
+                id="region-filter"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 
+                        focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
+                        hover:border-gray-300 appearance-none bg-white cursor-pointer text-base"
+                value={selectedRegion}
+                onChange={e => setSelectedRegion(e.target.value)}
+              >
+                <option value="all">All regions</option>
+                {regions.map(region => (
+                  <option key={region} value={region}>{region}</option>
+                ))}
+              </select>
+            </FilterSection>
 
-          {/* Language Filter */}
-          <FilterSection
-            icon={<Languages className="h-4 w-4 text-gray-400" />}
-            label="Filter by language"
-            id="language-filter"
-          >
-            <select
+            {/* Language Filter */}
+            <FilterSection
+              icon={<Languages className="h-4 w-4 text-gray-400" />}
+              label="Filter by language"
               id="language-filter"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 
-                       focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
-                       hover:border-gray-300 appearance-none bg-white cursor-pointer"
-              value={selectedLanguage}
-              onChange={e => setSelectedLanguage(e.target.value)}
             >
-              <option value="all">All languages</option>
-              {allLanguages.map(language => (
-                <option key={language} value={language}>{language}</option>
-              ))}
-            </select>
-          </FilterSection>
+              <select
+                id="language-filter"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 
+                        focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
+                        hover:border-gray-300 appearance-none bg-white cursor-pointer text-base"
+                value={selectedLanguage}
+                onChange={e => setSelectedLanguage(e.target.value)}
+              >
+                <option value="all">All languages</option>
+                {allLanguages.map(language => (
+                  <option key={language} value={language}>{language}</option>
+                ))}
+              </select>
+            </FilterSection>
+          </div>
         </div>
       </div>
 
@@ -250,7 +267,7 @@ function HomePage() {
 
 // Helper Components
 const FilterSection = ({ icon, label, id, children }) => (
-  <div className="space-y-2">
+  <div className="space-y-1 md:space-y-2">
     <label htmlFor={id} className="text-sm font-medium text-gray-700 flex items-center gap-2">
       {icon}
       {label}
