@@ -25,6 +25,8 @@ Visit the live application: [Countries Explorer](https://af-countries-explorer.n
 - **Tailwind CSS**: Styling
 - **Lucide Icons**: Icon library
 - **REST Countries API**: Country data
+- **Vitest & Jest**: Testing
+- **React Testing Library**: Component testing
 
 ## Getting Started
 
@@ -73,6 +75,10 @@ countries-explorer/
 │   ├── redux/            # Redux store and slices
 │   │   ├── store.js
 │   │   └── userSlice.js
+│   ├── __tests__/        # Test files
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── redux/
 │   ├── App.jsx          # Main app component
 │   └── main.jsx         # Entry point
 └── ...
@@ -109,6 +115,50 @@ The application uses the [REST Countries API](https://restcountries.com) to fetc
 - Languages
 - And more...
 
+## Testing
+
+The application includes comprehensive testing using Vitest, Jest, and React Testing Library.
+
+### Testing Framework
+
+- **Vitest**: Test runner optimized for Vite projects
+- **Jest**: Testing framework and assertions
+- **React Testing Library**: Component testing utilities
+- **Mock Service Worker**: API mocking
+
+### Types of Tests
+
+#### Unit Tests
+- Redux store and reducers testing
+- Individual component rendering and interactions
+- Utility functions
+
+#### Integration Tests
+- Component interaction with Redux store
+- Multi-component features
+- User flow testing
+
+### Test Coverage
+
+The test suite covers:
+- Redux state management (authentication, favorites)
+- Component rendering and interactions
+- API data fetching and handling
+- User interactions like searching and filtering
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate test coverage report
+npm run test:coverage
+```
+
 ## Styling
 
 The project uses Tailwind CSS for styling with:
@@ -136,3 +186,5 @@ This project is licensed under the MIT License - see the LICENSE.md file for det
 - [Redux Toolkit](https://redux-toolkit.js.org)
 - [React Router](https://reactrouter.com)
 - [Lucide Icons](https://lucide.dev)
+- [Vitest](https://vitest.dev)
+- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
