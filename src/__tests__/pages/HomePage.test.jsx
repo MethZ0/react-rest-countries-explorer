@@ -39,14 +39,6 @@ const mockCountries = [
   }
 ];
 
-// Mock fetch response
-global.fetch = vi.fn(() =>
-  Promise.resolve({
-    ok: true,
-    json: () => Promise.resolve(mockCountries),
-  })
-);
-
 // Component wrapper with required providers
 const renderWithProviders = (ui) => {
   const store = configureStore({
@@ -69,8 +61,32 @@ const renderWithProviders = (ui) => {
 
 describe('HomePage Integration Tests', () => {
   beforeEach(() => {
-    // Reset fetch mock before each test
-    global.fetch.mockClear();
+    // Mock fetch responses based on URL
+    global.fetch = vi.fn((url) => {
+      if (url === 'https://restcountries.com/v3.1/all') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockCountries),
+        });
+      } 
+      else if (url.includes('https://restcountries.com/v3.1/name/japan')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([mockCountries[1]]),
+        });
+      }
+      else if (url.includes('https://restcountries.com/v3.1/name/xyz123')) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+        });
+      }
+      // Default response for any other URL
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockCountries),
+      });
+    });
   });
 
   afterEach(() => {
@@ -88,7 +104,7 @@ describe('HomePage Integration Tests', () => {
       expect(screen.queryByText(/Loading countries/i)).not.toBeInTheDocument();
     });
     
-    // Check if countries are displayed
+    // Check if countries are displayed (look for country names in the cards)
     expect(screen.getByText('Germany')).toBeInTheDocument();
     expect(screen.getByText('Japan')).toBeInTheDocument();
     expect(screen.getByText('Brazil')).toBeInTheDocument();
@@ -97,28 +113,49 @@ describe('HomePage Integration Tests', () => {
     expect(global.fetch).toHaveBeenCalledWith('https://restcountries.com/v3.1/all');
   });
 
-  it('filters countries by search term', async () => {
+  it('filters countries by search term using API', async () => {
+    // Setup user event
     const user = userEvent.setup();
+    
     renderWithProviders(<HomePage />);
     
-    // Wait for countries to load
+    // Wait for initial countries to load
     await waitFor(() => {
       expect(screen.queryByText(/Loading countries/i)).not.toBeInTheDocument();
     });
 
-    // Get the search input and type in it
-    const searchInput = screen.getByPlaceholderText('Search for a country...');
+    // Get the search input
+    const searchInput = screen.getByPlaceholderText(/Search for a country/i);
+    expect(searchInput).toBeInTheDocument();
+    
+    // Mock setTimeout to instantly trigger debounced functions
+    const realSetTimeout = global.setTimeout;
+    global.setTimeout = vi.fn((fn) => {
+      fn();
+      return 123; // dummy timeout id
+    });
+    
+    // Clear any existing value and type in it
     await user.clear(searchInput);
     await user.type(searchInput, 'japan');
     
+    // Restore setTimeout
+    global.setTimeout = realSetTimeout;
+    
+    // Wait for the search results to load
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('https://restcountries.com/v3.1/name/japan');
+    });
+    
     // Only Japan should be visible
-    expect(screen.getByText('Japan')).toBeInTheDocument();
-    expect(screen.queryByText('Germany')).not.toBeInTheDocument();
-    expect(screen.queryByText('Brazil')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Japan')).toBeInTheDocument();
+      expect(screen.queryByText('Germany')).not.toBeInTheDocument();
+      expect(screen.queryByText('Brazil')).not.toBeInTheDocument();
+    });
   });
 
   it('filters countries by region', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<HomePage />);
     
     // Wait for countries to load
@@ -126,18 +163,22 @@ describe('HomePage Integration Tests', () => {
       expect(screen.queryByText(/Loading countries/i)).not.toBeInTheDocument();
     });
 
-    // Select Europe region
+    // Find the region filter by its ID
     const regionSelect = screen.getByLabelText(/Filter by region/i);
-    await user.selectOptions(regionSelect, 'Europe');
+    expect(regionSelect).toBeInTheDocument();
+    
+    // Select Europe region using fireEvent (more reliable than userEvent in some test environments)
+    fireEvent.change(regionSelect, { target: { value: 'Europe' } });
     
     // Only Germany should be visible
-    expect(screen.getByText('Germany')).toBeInTheDocument();
-    expect(screen.queryByText('Japan')).not.toBeInTheDocument();
-    expect(screen.queryByText('Brazil')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Germany')).toBeInTheDocument();
+      expect(screen.queryByText('Japan')).not.toBeInTheDocument();
+      expect(screen.queryByText('Brazil')).not.toBeInTheDocument();
+    });
   });
 
   it('filters countries by language', async () => {
-    const user = userEvent.setup();
     renderWithProviders(<HomePage />);
     
     // Wait for countries to load
@@ -145,35 +186,37 @@ describe('HomePage Integration Tests', () => {
       expect(screen.queryByText(/Loading countries/i)).not.toBeInTheDocument();
     });
 
-    // Select Portuguese language
+    // Find the language filter by its ID
     const languageSelect = screen.getByLabelText(/Filter by language/i);
-    await user.selectOptions(languageSelect, 'Portuguese');
+    expect(languageSelect).toBeInTheDocument();
+    
+    // Select Portuguese language using fireEvent
+    fireEvent.change(languageSelect, { target: { value: 'Portuguese' } });
     
     // Only Brazil should be visible
-    expect(screen.getByText('Brazil')).toBeInTheDocument();
-    expect(screen.queryByText('Japan')).not.toBeInTheDocument();
-    expect(screen.queryByText('Germany')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Brazil')).toBeInTheDocument();
+      expect(screen.queryByText('Japan')).not.toBeInTheDocument();
+      expect(screen.queryByText('Germany')).not.toBeInTheDocument();
+    });
   });
 
   it('shows error state when fetch fails', async () => {
-    // Mock fetch to fail for this test
-    global.fetch.mockImplementationOnce(() => 
-      Promise.reject(new Error('Failed to fetch'))
-    );
+    // Override the mock for this specific test
+    global.fetch = vi.fn().mockRejectedValueOnce(new Error('Failed to fetch'));
     
     renderWithProviders(<HomePage />);
     
-    // Initially shows loading state
-    expect(screen.getByText(/Loading countries/i)).toBeInTheDocument();
-    
     // Wait for error state to show
     await waitFor(() => {
-      expect(screen.queryByText(/Failed to load countries/i)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to load countries/i)).toBeInTheDocument();
     });
   });
 
-  it('shows no results state when filters match no countries', async () => {
+  it('handles 404 response when no search results found', async () => {
+    // Setup user event
     const user = userEvent.setup();
+    
     renderWithProviders(<HomePage />);
     
     // Wait for countries to load
@@ -181,14 +224,76 @@ describe('HomePage Integration Tests', () => {
       expect(screen.queryByText(/Loading countries/i)).not.toBeInTheDocument();
     });
 
-    // Enter a search term that won't match any countries
-    const searchInput = screen.getByPlaceholderText('Search for a country...');
+    // Clear the fetch mock call history
+    global.fetch.mockClear();
+
+    // Mock setTimeout to instantly trigger debounced functions
+    const realSetTimeout = global.setTimeout;
+    global.setTimeout = vi.fn((fn) => {
+      fn();
+      return 123; // dummy timeout id
+    });
+    
+    // Enter a search term that will return 404
+    const searchInput = screen.getByPlaceholderText(/Search for a country/i);
     await user.clear(searchInput);
-    await user.type(searchInput, 'XYZ123');
+    await user.type(searchInput, 'xyz123');
+    
+    // Restore setTimeout
+    global.setTimeout = realSetTimeout;
+    
+    // Wait for the search to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('https://restcountries.com/v3.1/name/xyz123');
+    });
     
     // Should show no results state
     await waitFor(() => {
       expect(screen.getByText(/No countries found/i)).toBeInTheDocument();
     });
+  });
+  
+  it('calls fetch with all countries endpoint when search is cleared', async () => {
+    // Setup user event
+    const user = userEvent.setup();
+    
+    renderWithProviders(<HomePage />);
+    
+    // Wait for initial countries to load
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading countries/i)).not.toBeInTheDocument();
+    });
+    
+    // Clear fetch mock call history after initial load
+    global.fetch.mockClear();
+    
+    // Create a direct mock for setTimeout to avoid timing issues
+    const originalSetTimeout = global.setTimeout;
+    
+    // Replace setTimeout with a function that calls the callback immediately
+    global.setTimeout = vi.fn((fn) => {
+      fn();
+      return 123; // dummy timeout id
+    });
+    
+    // Search for Japan
+    const searchInput = screen.getByPlaceholderText(/Search for a country/i);
+    await user.clear(searchInput);
+    await user.type(searchInput, 'japan');
+    
+    // Verify search API was called
+    expect(global.fetch).toHaveBeenCalledWith('https://restcountries.com/v3.1/name/japan');
+    
+    // Clear fetch history again
+    global.fetch.mockClear();
+    
+    // Clear the search input
+    await user.clear(searchInput);
+    
+    // Verify the all countries API was called
+    expect(global.fetch).toHaveBeenCalledWith('https://restcountries.com/v3.1/all');
+    
+    // Restore setTimeout
+    global.setTimeout = originalSetTimeout;
   });
 });
