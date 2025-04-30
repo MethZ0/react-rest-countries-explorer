@@ -14,46 +14,109 @@ function HomePage() {
   const [error, setError] = useState("")
   const [allLanguages, setAllLanguages] = useState([])
   const [selectedLanguage, setSelectedLanguage] = useState("")
+  const [searchTimeout, setSearchTimeout] = useState(null)
 
-  // Fetch all countries on initial load
-  useEffect(() => {
-    const fetchCountries = async () => {
-      try {
-        setLoading(true)
-        const response = await fetch("https://restcountries.com/v3.1/all")
-        if (!response.ok) throw new Error("Failed to fetch countries")
-        const data = await response.json()
+  // Fetch all countries or search results
+  const fetchCountries = async (name = "") => {
+    try {
+      setLoading(true)
+      
+      // Use the search endpoint if a name is provided
+      const url = name 
+        ? `https://restcountries.com/v3.1/name/${name}` 
+        : "https://restcountries.com/v3.1/all"
+      
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        // If it's a search with no results, set empty array instead of error
+        if (name && response.status === 404) {
+          setFilteredCountries([])
+          setCountries(await (await fetch("https://restcountries.com/v3.1/all")).json())
+          setLoading(false)
+          return
+        }
+        throw new Error("Failed to fetch countries")
+      }
+      
+      const data = await response.json()
+      
+      if (name) {
+        setFilteredCountries(data)
+        
+        // If we're searching, we still need complete data for filters
+        if (!countries.length) {
+          const allCountriesResponse = await fetch("https://restcountries.com/v3.1/all")
+          if (allCountriesResponse.ok) {
+            const allCountriesData = await allCountriesResponse.json()
+            setCountries(allCountriesData)
+            
+            // Extract languages only if we don't have them yet
+            if (allLanguages.length === 0) {
+              extractLanguages(allCountriesData)
+            }
+          }
+        }
+      } else {
         setCountries(data)
         setFilteredCountries(data)
-
-        // Extract all languages
-        const languagesSet = new Set()
-        data.forEach(country => {
-          if (country.languages) {
-            Object.values(country.languages).forEach(lang => languagesSet.add(lang))
-          }
-        })
-        setAllLanguages(Array.from(languagesSet).sort())
-      } catch (err) {
-        setError("Failed to load countries. Please try again later.")
-        console.error(err)
-      } finally {
-        setLoading(false)
+        extractLanguages(data)
       }
+    } catch (err) {
+      setError("Failed to load countries. Please try again later.")
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
+  }
+  
+  // Helper function to extract languages
+  const extractLanguages = (data) => {
+    const languagesSet = new Set()
+    data.forEach(country => {
+      if (country.languages) {
+        Object.values(country.languages).forEach(lang => languagesSet.add(lang))
+      }
+    })
+    setAllLanguages(Array.from(languagesSet).sort())
+  }
 
+  // Initial load of all countries
+  useEffect(() => {
     fetchCountries()
   }, [])
 
-  // Filter countries based on search term, region, and language
+  // Handle search with debouncing
   useEffect(() => {
-    let result = countries
-
-    if (searchTerm) {
-      result = result.filter(country => 
-        country.name.common.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+    // Clear any existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout)
     }
+    
+    // Don't search if the term is empty
+    if (!searchTerm) {
+      fetchCountries()
+      return
+    }
+    
+    // Set a new timeout to delay the search
+    const timeout = setTimeout(() => {
+      fetchCountries(searchTerm)
+    }, 500) // 500ms debounce
+    
+    setSearchTimeout(timeout)
+    
+    // Cleanup on unmount
+    return () => {
+      if (searchTimeout) clearTimeout(searchTimeout)
+    }
+  }, [searchTerm])
+
+  // Apply region and language filters client-side
+  useEffect(() => {
+    if (!selectedRegion && !selectedLanguage) return
+    
+    let result = [...filteredCountries]
 
     if (selectedRegion && selectedRegion !== "all") {
       result = result.filter(country => country.region === selectedRegion)
@@ -69,7 +132,7 @@ function HomePage() {
     }
 
     setFilteredCountries(result)
-  }, [searchTerm, selectedRegion, selectedLanguage, countries])
+  }, [selectedRegion, selectedLanguage])
 
   // Get unique regions for the filter
   const regions = [...new Set(countries.map(country => country.region))].sort()
