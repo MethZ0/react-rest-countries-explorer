@@ -3,7 +3,7 @@
 import React from 'react';
 import { useState, useEffect } from "react"
 import CountryCard from "../components/CountryCard"
-import { Loader2, Search, Globe, Languages, SearchX, XCircle, Filter, ChevronDown, ChevronUp } from "lucide-react"
+import { Loader2, Search, Globe, Languages, SearchX, XCircle, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
 
 function HomePage() {
   const [countries, setCountries] = useState([])
@@ -16,6 +16,10 @@ function HomePage() {
   const [selectedLanguage, setSelectedLanguage] = useState("")
   const [searchTimeout, setSearchTimeout] = useState(null)
   const [showFilters, setShowFilters] = useState(true)
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [countriesPerPage, setCountriesPerPage] = useState(12)
 
   // Fetch all countries or search results
   const fetchCountries = async (name = "") => {
@@ -134,6 +138,38 @@ function HomePage() {
     setFilteredCountries(result);
   }, [selectedRegion, selectedLanguage, searchTerm, countries]);
 
+  // Reset to page 1 when filters or search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedRegion, selectedLanguage, searchTerm])
+
+  // Pagination calculation
+  const indexOfLastCountry = currentPage * countriesPerPage
+  const indexOfFirstCountry = indexOfLastCountry - countriesPerPage
+  const currentCountries = filteredCountries.slice(indexOfFirstCountry, indexOfLastCountry)
+  const totalPages = Math.ceil(filteredCountries.length / countriesPerPage)
+
+  // Change page
+  const paginate = (pageNumber) => {
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setCurrentPage(pageNumber)
+  }
+
+  // Go to next page
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      paginate(currentPage + 1)
+    }
+  }
+
+  // Go to previous page
+  const prevPage = () => {
+    if (currentPage > 1) {
+      paginate(currentPage - 1)
+    }
+  }
+
   // Get unique regions for the filter
   const regions = [...new Set(countries.map(country => country.region))].sort()
 
@@ -242,20 +278,122 @@ function HomePage() {
 
       {/* Results Count */}
       {!loading && !error && (
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <p className="text-gray-600">
-            Showing <span className="font-semibold text-blue-600">{filteredCountries.length}</span> of{" "}
-            <span className="font-semibold text-blue-600">{countries.length}</span> countries
+            Showing <span className="font-semibold text-blue-600">{indexOfFirstCountry + 1}-{Math.min(indexOfLastCountry, filteredCountries.length)}</span> of{" "}
+            <span className="font-semibold text-blue-600">{filteredCountries.length}</span> countries
           </p>
+          
+          <div className="flex items-center">
+            <label htmlFor="countries-per-page" className="text-sm text-gray-600 mr-2">Show:</label>
+            <select 
+              id="countries-per-page" 
+              value={countriesPerPage}
+              onChange={(e) => {
+                setCountriesPerPage(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={8}>8</option>
+              <option value={12}>12</option>
+              <option value={24}>24</option>
+              <option value={48}>48</option>
+            </select>
+          </div>
         </div>
       )}
 
       {/* Countries Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-fr">
-        {filteredCountries.map(country => (
+        {currentCountries.map(country => (
           <CountryCard key={country.cca3} country={country} />
         ))}
       </div>
+
+      {/* Pagination */}
+      {!loading && !error && filteredCountries.length > 0 && (
+        <div className="mt-8 mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {/* Pagination buttons */}
+            <button 
+              onClick={prevPage} 
+              disabled={currentPage === 1}
+              className={`flex items-center justify-center p-2 rounded ${
+                currentPage === 1 
+                  ? 'text-gray-400 cursor-not-allowed' 
+                  : 'text-blue-600 hover:bg-blue-50'
+              }`}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            
+            {/* Page numbers - show up to 5 page numbers */}
+            <div className="flex items-center">
+              {Array.from({ length: Math.min(5, totalPages) }).map((_, idx) => {
+                // Calculate page number to show based on current page and total pages
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = idx + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = idx + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + idx;
+                } else {
+                  pageNum = currentPage - 2 + idx;
+                }
+                
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => paginate(pageNum)}
+                    className={`w-8 h-8 flex items-center justify-center rounded ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white font-medium'
+                        : 'text-gray-700 hover:bg-blue-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              
+              {/* Show ellipsis for more pages */}
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <span className="px-2">...</span>
+              )}
+              
+              {/* Always show last page if there are many pages */}
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <button
+                  onClick={() => paginate(totalPages)}
+                  className="w-8 h-8 flex items-center justify-center rounded text-gray-700 hover:bg-blue-50"
+                >
+                  {totalPages}
+                </button>
+              )}
+            </div>
+            
+            <button 
+              onClick={nextPage} 
+              disabled={currentPage === totalPages}
+              className={`flex items-center justify-center p-2 rounded ${
+                currentPage === totalPages 
+                  ? 'text-gray-400 cursor-not-allowed' 
+                  : 'text-blue-600 hover:bg-blue-50'
+              }`}
+              aria-label="Next page"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* No Results */}
       {!loading && !error && filteredCountries.length === 0 && (
