@@ -3,7 +3,8 @@
 import React from 'react';
 import { useState, useEffect } from "react"
 import CountryCard from "../components/CountryCard"
-import { Loader2, Search, Globe, Languages, SearchX, XCircle, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2, Search, Globe, Languages, SearchX, XCircle, Filter, RefreshCw, Sparkles, GlobeIcon, MapPin, Users, BookOpen } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 
 function HomePage() {
   const [countries, setCountries] = useState([])
@@ -15,11 +16,14 @@ function HomePage() {
   const [allLanguages, setAllLanguages] = useState([])
   const [selectedLanguage, setSelectedLanguage] = useState("")
   const [searchTimeout, setSearchTimeout] = useState(null)
-  const [showFilters, setShowFilters] = useState(true)
-  
-  // Pagination states
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
+  const [viewMode, setViewMode] = useState("grid") // grid or compact
+  const [sortBy, setSortBy] = useState("name") // name, population, area
+  const [sortOrder, setSortOrder] = useState("asc") // asc, desc
+  // Add pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [countriesPerPage, setCountriesPerPage] = useState(12)
+  const [totalPages, setTotalPages] = useState(1)
 
   // Fetch all countries or search results
   const fetchCountries = async (name = "") => {
@@ -119,152 +123,378 @@ function HomePage() {
 
   // Apply region and language filters client-side
   useEffect(() => {
-    // Start with all fetched countries when applying filters
-    let result = searchTerm ? [...filteredCountries] : [...countries];
+    if (!selectedRegion && !selectedLanguage) return
+    
+    let result = [...filteredCountries]
 
     if (selectedRegion && selectedRegion !== "all") {
-      result = result.filter(country => country.region === selectedRegion);
+      result = result.filter(country => country.region === selectedRegion)
     }
 
     if (selectedLanguage && selectedLanguage !== "all") {
       result = result.filter(country => {
-        if (!country.languages) return false;
+        if (!country.languages) return false
         return Object.values(country.languages).some(
           lang => lang.toLowerCase() === selectedLanguage.toLowerCase()
-        );
-      });
+        )
+      })
     }
 
-    setFilteredCountries(result);
-  }, [selectedRegion, selectedLanguage, searchTerm, countries]);
+    setFilteredCountries(result)
+  }, [selectedRegion, selectedLanguage])
 
-  // Reset to page 1 when filters or search term changes
+  // Apply sorting
   useEffect(() => {
-    setCurrentPage(1)
-  }, [selectedRegion, selectedLanguage, searchTerm])
+    if (!filteredCountries.length) return;
 
-  // Pagination calculation
-  const indexOfLastCountry = currentPage * countriesPerPage
-  const indexOfFirstCountry = indexOfLastCountry - countriesPerPage
-  const currentCountries = filteredCountries.slice(indexOfFirstCountry, indexOfLastCountry)
-  const totalPages = Math.ceil(filteredCountries.length / countriesPerPage)
+    const sorted = [...filteredCountries].sort((a, b) => {
+      if (sortBy === "name") {
+        return sortOrder === "asc" 
+          ? a.name.common.localeCompare(b.name.common)
+          : b.name.common.localeCompare(a.name.common);
+      } else if (sortBy === "population") {
+        return sortOrder === "asc"
+          ? a.population - b.population
+          : b.population - a.population;
+      } else if (sortBy === "area") {
+        // Handle undefined areas by treating them as 0
+        const areaA = a.area || 0;
+        const areaB = b.area || 0;
+        return sortOrder === "asc" ? areaA - areaB : areaB - areaA;
+      }
+      return 0;
+    });
 
-  // Change page
-  const paginate = (pageNumber) => {
-    // Scroll to top when changing pages
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    setCurrentPage(pageNumber)
-  }
+    setFilteredCountries(sorted);
+  }, [sortBy, sortOrder]);
 
-  // Go to next page
-  const nextPage = () => {
-    if (currentPage < totalPages) {
-      paginate(currentPage + 1)
-    }
-  }
-
-  // Go to previous page
-  const prevPage = () => {
-    if (currentPage > 1) {
-      paginate(currentPage - 1)
-    }
+  // Reset all filters
+  const resetFilters = () => {
+    setSearchTerm("")
+    setSelectedRegion("")
+    setSelectedLanguage("")
+    setFilteredCountries(countries)
+    setCurrentPage(1) // Reset to first page when filters are reset
   }
 
   // Get unique regions for the filter
   const regions = [...new Set(countries.map(country => country.region))].sort()
 
-  return (
-    <main className="container mx-auto px-4 py-8 min-h-screen animate-fadeIn pt-24">
-      {/* Hero Section */}
-      <div className="text-center mb-8 md:mb-12">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
-          Countries Explorer
-        </h1>
-        <p className="text-gray-600 text-lg">
-          Discover and explore countries from around the world
-        </p>
-      </div>
+  // Calculate total pages based on filtered countries
+  useEffect(() => {
+    if (filteredCountries.length) {
+      setTotalPages(Math.ceil(filteredCountries.length / countriesPerPage))
+      // If current page is now beyond available pages, reset to page 1
+      if (currentPage > Math.ceil(filteredCountries.length / countriesPerPage)) {
+        setCurrentPage(1)
+      }
+    } else {
+      setTotalPages(1)
+    }
+  }, [filteredCountries, countriesPerPage])
 
-      {/* Mobile Filter Toggle */}
-      <div className="md:hidden mb-4">
-        <button 
-          onClick={() => setShowFilters(!showFilters)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 text-blue-600 rounded-lg font-medium border border-blue-100 transition-all hover:bg-blue-100"
-        >
-          <span className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </span>
-          {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
+  // Get the current countries to display
+  const indexOfLastCountry = currentPage * countriesPerPage
+  const indexOfFirstCountry = indexOfLastCountry - countriesPerPage
+  const currentCountries = filteredCountries.slice(indexOfFirstCountry, indexOfLastCountry)
+
+  // Change page
+  const paginate = (pageNumber) => {
+    if (pageNumber > 0 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber)
+      // Scroll to top when changing pages
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  // Animation variants
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  }
+
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 20 },
+    show: { 
+      opacity: 1, 
+      y: 0,
+      transition: { duration: 0.6, ease: "easeOut" }
+    }
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-screen bg-slate-950 pt-24 pb-16 px-4 sm:px-6"
+    >
+      {/* Hero Section with Animated Background */}
+      <div className="relative overflow-hidden mb-16">
+        {/* Modern gradient background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950 rounded-3xl"></div>
+        
+        {/* Animated grid pattern */}
+        <div className="absolute inset-0 opacity-20 rounded-3xl" style={{ 
+          backgroundImage: "linear-gradient(to right, rgba(99, 102, 241, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(99, 102, 241, 0.1) 1px, transparent 1px)",
+          backgroundSize: "40px 40px" 
+        }}></div>
+        
+        {/* Animated gradient orbs */}
+        <motion.div
+          className="absolute top-1/3 -left-20 w-72 h-72 rounded-full bg-cyan-500/10 blur-3xl"
+          animate={{
+            x: [0, 50, 0],
+            y: [0, -20, 0],
+          }}
+          transition={{
+            duration: 15,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        
+        <motion.div
+          className="absolute bottom-1/3 -right-20 w-64 h-64 rounded-full bg-violet-500/10 blur-3xl"
+          animate={{
+            x: [0, -30, 0],
+            y: [0, 20, 0],
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        
+        <div className="container mx-auto relative z-10 py-16 px-6">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
+            className="text-center max-w-3xl mx-auto"
+          >
+            <motion.div 
+              variants={fadeInUp}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full
+                bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-500/20 backdrop-blur-sm mb-4"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span className="text-sm font-medium text-indigo-400">Discover the World</span>
+            </motion.div>
+            
+            <motion.h1
+              variants={fadeInUp}
+              className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-clip-text text-transparent 
+                bg-gradient-to-r from-cyan-400 via-indigo-400 to-violet-500 leading-tight"
+            >
+              Explore Countries
+            </motion.h1>
+            
+            <motion.p variants={fadeInUp} className="text-slate-300 text-lg max-w-2xl mx-auto mb-8 leading-relaxed">
+              Discover detailed information about countries from around the world.
+              Use the filters below to find specific regions, languages, or search by name.
+            </motion.p>
+            
+            {/* Feature icons */}
+            <motion.div 
+              variants={fadeInUp}
+              className="flex flex-wrap justify-center gap-6 mt-6"
+            >
+              {[
+                { icon: <GlobeIcon className="w-6 h-6 text-cyan-400" />, label: "196 Countries" },
+                { icon: <Users className="w-6 h-6 text-indigo-400" />, label: "Population Data" },
+                { icon: <MapPin className="w-6 h-6 text-violet-400" />, label: "Detailed Maps" },
+                { icon: <BookOpen className="w-6 h-6 text-pink-400" />, label: "Cultural Insights" },
+              ].map((item, index) => (
+                <div key={index} className="flex items-center gap-2 text-slate-300">
+                  <div className="p-2 rounded-lg bg-slate-800/70 border border-slate-700/50">{item.icon}</div>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+        </div>
       </div>
 
       {/* Filters Section */}
-      <div className={`bg-white rounded-xl shadow-lg mb-6 md:mb-8 transition-all duration-300 hover:shadow-xl ${showFilters ? 'block' : 'hidden md:block'}`}>
-        <div className="p-4 md:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="container mx-auto mb-10"
+      >
+        <div className="bg-slate-900/50 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-slate-800 hover:border-indigo-500/30 transition-all duration-300">
+          <div className="flex flex-col space-y-6">
             {/* Search Input */}
-            <FilterSection
-              icon={<Search className="h-4 w-4 text-gray-400" />}
-              label="Search by country name"
-              id="search"
-            >
+            <div className="relative">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-indigo-400" />
+              </div>
               <input
                 type="text"
-                id="search"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 
-                        focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
-                        hover:border-gray-300 text-base"
+                className="w-full pl-10 pr-12 py-3.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white
+                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300
+                         hover:border-indigo-400/30 placeholder-slate-500 shadow-md"
                 placeholder="Search for a country..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
-            </FilterSection>
+              {searchTerm && (
+                <button 
+                  className="absolute inset-y-0 right-3 flex items-center" 
+                  onClick={() => setSearchTerm("")}
+                >
+                  <XCircle className="h-5 w-5 text-slate-500 hover:text-white transition-colors" />
+                </button>
+              )}
+            </div>
 
-            {/* Region Filter */}
-            <FilterSection
-              icon={<Globe className="h-4 w-4 text-gray-400" />}
-              label="Filter by region"
-              id="region-filter"
-            >
-              <select
-                id="region-filter"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 
-                        focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
-                        hover:border-gray-300 appearance-none bg-white cursor-pointer text-base"
-                value={selectedRegion}
-                onChange={e => setSelectedRegion(e.target.value)}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <button 
+                onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800/70 hover:bg-slate-800 rounded-lg border border-slate-700 
+                  text-slate-300 hover:text-white transition-all text-sm"
               >
-                <option value="all">All regions</option>
-                {regions.map(region => (
-                  <option key={region} value={region}>{region}</option>
-                ))}
-              </select>
-            </FilterSection>
+                <Filter className="h-4 w-4" />
+                {isFiltersExpanded ? "Hide Filters" : "Show Filters"}
+              </button>
+              
+              {/* Display options */}
+              <div className="flex items-center gap-3">
+                {/* View mode toggle */}
+                <div className="flex items-center gap-1 p-1 bg-slate-800/70 rounded-lg border border-slate-700">
+                  <button 
+                    className={`p-1.5 rounded ${viewMode === 'grid' 
+                      ? 'bg-indigo-500/30 text-indigo-300' 
+                      : 'text-slate-400 hover:text-slate-300'}`}
+                    onClick={() => setViewMode('grid')}
+                    aria-label="Grid view"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                  </button>
+                  <button 
+                    className={`p-1.5 rounded ${viewMode === 'compact' 
+                      ? 'bg-indigo-500/30 text-indigo-300' 
+                      : 'text-slate-400 hover:text-slate-300'}`}
+                    onClick={() => setViewMode('compact')}
+                    aria-label="Compact view"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Sort options */}
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [newSortBy, newSortOrder] = e.target.value.split('-');
+                    setSortBy(newSortBy);
+                    setSortOrder(newSortOrder);
+                  }}
+                  className="bg-slate-800/70 border border-slate-700 rounded-lg text-slate-300 text-sm px-3 py-1.5
+                    focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="population-desc">Population (High-Low)</option>
+                  <option value="population-asc">Population (Low-High)</option>
+                  <option value="area-desc">Area (Large-Small)</option>
+                  <option value="area-asc">Area (Small-Large)</option>
+                </select>
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={resetFilters}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-800/70 hover:bg-slate-800
+                    border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all text-sm"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Reset
+                </motion.button>
+              </div>
+            </div>
 
-            {/* Language Filter */}
-            <FilterSection
-              icon={<Languages className="h-4 w-4 text-gray-400" />}
-              label="Filter by language"
-              id="language-filter"
-            >
-              <select
-                id="language-filter"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 
-                        focus:ring-blue-500 focus:border-blue-500 transition-all duration-300
-                        hover:border-gray-300 appearance-none bg-white cursor-pointer text-base"
-                value={selectedLanguage}
-                onChange={e => setSelectedLanguage(e.target.value)}
-              >
-                <option value="all">All languages</option>
-                {allLanguages.map(language => (
-                  <option key={language} value={language}>{language}</option>
-                ))}
-              </select>
-            </FilterSection>
+            <AnimatePresence>
+              {isFiltersExpanded && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-700/50"
+                >
+                  {/* Region Filter */}
+                  <FilterSection
+                    icon={<Globe className="h-4 w-4 text-cyan-400" />}
+                    label="Filter by region"
+                    id="region-filter"
+                  >
+                    <div className="relative">
+                      <select
+                        id="region-filter"
+                        className="w-full appearance-none px-4 py-2.5 bg-slate-800/70 border border-slate-700 rounded-lg text-white
+                                focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300
+                                hover:border-indigo-400/30 cursor-pointer pr-10"
+                        value={selectedRegion}
+                        onChange={e => setSelectedRegion(e.target.value)}
+                      >
+                        <option value="all">All regions</option>
+                        {regions.map(region => (
+                          <option key={region} value={region}>{region}</option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </FilterSection>
+
+                  {/* Language Filter */}
+                  <FilterSection
+                    icon={<Languages className="h-4 w-4 text-violet-400" />}
+                    label="Filter by language"
+                    id="language-filter"
+                  >
+                    <div className="relative">
+                      <select
+                        id="language-filter"
+                        className="w-full appearance-none px-4 py-2.5 bg-slate-800/70 border border-slate-700 rounded-lg text-white
+                                focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300
+                                hover:border-indigo-400/30 cursor-pointer pr-10"
+                        value={selectedLanguage}
+                        onChange={e => setSelectedLanguage(e.target.value)}
+                      >
+                        <option value="all">All languages</option>
+                        {allLanguages.map(language => (
+                          <option key={language} value={language}>{language}</option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </FilterSection>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Loading State */}
       {loading && (
@@ -278,135 +508,201 @@ function HomePage() {
 
       {/* Results Count */}
       {!loading && !error && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-          <p className="text-gray-600">
-            Showing <span className="font-semibold text-blue-600">{indexOfFirstCountry + 1}-{Math.min(indexOfLastCountry, filteredCountries.length)}</span> of{" "}
-            <span className="font-semibold text-blue-600">{filteredCountries.length}</span> countries
-          </p>
-          
-          <div className="flex items-center">
-            <label htmlFor="countries-per-page" className="text-sm text-gray-600 mr-2">Show:</label>
-            <select 
-              id="countries-per-page" 
-              value={countriesPerPage}
-              onChange={(e) => {
-                setCountriesPerPage(Number(e.target.value))
-                setCurrentPage(1)
-              }}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={8}>8</option>
-              <option value={12}>12</option>
-              <option value={24}>24</option>
-              <option value={48}>48</option>
-            </select>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="container mx-auto flex items-center justify-between mb-6"
+        >
+          <div className="px-4 py-2 rounded-xl bg-slate-800/50 border border-slate-700">
+            <p className="text-slate-300 flex items-center gap-2">
+              <GlobeIcon className="h-4 w-4 text-cyan-400" />
+              Showing <span className="font-semibold text-cyan-400">{filteredCountries.length}</span> of{" "}
+              <span className="font-semibold text-cyan-400">{countries.length}</span> countries
+            </p>
           </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* Countries Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-fr">
-        {currentCountries.map(country => (
-          <CountryCard key={country.cca3} country={country} />
-        ))}
-      </div>
+      {/* Countries Grid or List */}
+      {viewMode === 'grid' ? (
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+          className="container mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-fr"
+        >
+          {currentCountries.map((country, index) => (
+            <motion.div
+              key={country.cca3}
+              variants={fadeInUp}
+              custom={index}
+              transition={{ delay: index * 0.05 }}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+            >
+              <CountryCard country={country} />
+            </motion.div>
+          ))}
+        </motion.div>
+      ) : (
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+          className="container mx-auto space-y-3"
+        >
+          {currentCountries.map((country, index) => (
+            <motion.div
+              key={country.cca3}
+              variants={fadeInUp}
+              custom={index}
+              transition={{ delay: index * 0.03 }}
+              whileHover={{ x: 5, transition: { duration: 0.2 } }}
+              className="bg-slate-800/70 backdrop-blur-sm border border-slate-700 hover:border-indigo-500/30 
+                rounded-xl p-4 flex items-center gap-4 transition-all duration-300"
+            >
+              <img 
+                src={country.flags?.svg || country.flags?.png} 
+                alt={country.flags?.alt || `Flag of ${country.name.common}`}
+                className="w-12 h-8 object-cover rounded shadow-md"
+              />
+              <div className="flex-1">
+                <h3 className="font-medium text-white text-lg">{country.name.common}</h3>
+                <div className="flex items-center gap-6 text-sm text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-cyan-400" /> {country.region}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Users className="w-3 h-3 text-violet-400" /> {country.population?.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <a href={`/country/${country.cca3}`} className="px-3 py-1.5 bg-indigo-500/20 text-indigo-300 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors">
+                Details
+              </a>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
 
       {/* Pagination */}
-      {!loading && !error && filteredCountries.length > 0 && (
-        <div className="mt-8 mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-gray-600">
-            Page {currentPage} of {totalPages}
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {/* Pagination buttons */}
-            <button 
-              onClick={prevPage} 
-              disabled={currentPage === 1}
-              className={`flex items-center justify-center p-2 rounded ${
-                currentPage === 1 
-                  ? 'text-gray-400 cursor-not-allowed' 
-                  : 'text-blue-600 hover:bg-blue-50'
-              }`}
-              aria-label="Previous page"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            
-            {/* Page numbers - show up to 5 page numbers */}
-            <div className="flex items-center">
-              {Array.from({ length: Math.min(5, totalPages) }).map((_, idx) => {
-                // Calculate page number to show based on current page and total pages
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = idx + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = idx + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + idx;
-                } else {
-                  pageNum = currentPage - 2 + idx;
-                }
-                
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => paginate(pageNum)}
-                    className={`w-8 h-8 flex items-center justify-center rounded ${
-                      currentPage === pageNum
-                        ? 'bg-blue-600 text-white font-medium'
-                        : 'text-gray-700 hover:bg-blue-50'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-              
-              {/* Show ellipsis for more pages */}
-              {totalPages > 5 && currentPage < totalPages - 2 && (
-                <span className="px-2">...</span>
-              )}
-              
-              {/* Always show last page if there are many pages */}
-              {totalPages > 5 && currentPage < totalPages - 2 && (
-                <button
-                  onClick={() => paginate(totalPages)}
-                  className="w-8 h-8 flex items-center justify-center rounded text-gray-700 hover:bg-blue-50"
-                >
-                  {totalPages}
-                </button>
-              )}
+      {!loading && !error && totalPages > 1 && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="container mx-auto mt-8"
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Countries per page:</span>
+              <select
+                aria-label="Countries per page"
+                value={countriesPerPage}
+                onChange={(e) => {
+                  setCountriesPerPage(Number(e.target.value))
+                  setCurrentPage(1) // Reset to first page when changing items per page
+                }}
+                className="bg-slate-800/70 border border-slate-700 rounded-lg text-slate-300 text-sm px-2 py-1
+                  focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="12">12</option>
+                <option value="24">24</option>
+                <option value="48">48</option>
+                <option value="96">96</option>
+              </select>
             </div>
             
-            <button 
-              onClick={nextPage} 
-              disabled={currentPage === totalPages}
-              className={`flex items-center justify-center p-2 rounded ${
-                currentPage === totalPages 
-                  ? 'text-gray-400 cursor-not-allowed' 
-                  : 'text-blue-600 hover:bg-blue-50'
-              }`}
-              aria-label="Next page"
-            >
-              <ChevronRight size={20} />
-            </button>
+            <div className="text-sm text-slate-400">
+              Page {currentPage} of {totalPages} ({indexOfFirstCountry + 1}-{Math.min(indexOfLastCountry, filteredCountries.length)} of {filteredCountries.length})
+            </div>
           </div>
-        </div>
+          
+          <nav className="flex flex-wrap justify-center gap-2">
+            <button 
+              onClick={() => paginate(1)}
+              className="px-3 py-1.5 bg-slate-800/70 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all text-sm"
+              disabled={currentPage === 1}
+            >
+              First
+            </button>
+            <button 
+              onClick={() => paginate(currentPage - 1)}
+              className="px-3 py-1.5 bg-slate-800/70 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all text-sm"
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            
+            {/* Dynamic pagination buttons */}
+            {[...Array(totalPages)].map((_, index) => {
+              // Show current page, 2 pages before and after, first and last pages
+              if (
+                index === 0 || 
+                index === totalPages - 1 || 
+                (index >= currentPage - 2 && index <= currentPage + 1)
+              ) {
+                return (
+                  <button 
+                    key={index}
+                    onClick={() => paginate(index + 1)}
+                    className={`px-3 py-1.5 border rounded-lg text-sm transition-all ${currentPage === index + 1 
+                      ? 'bg-indigo-500/30 border-indigo-500 text-indigo-300' 
+                      : 'bg-slate-800/70 border-slate-700 text-slate-300 hover:text-white'}`}
+                  >
+                    {index + 1}
+                  </button>
+                );
+              }
+              
+              // Show ellipsis for skipped pages, but only once
+              if (
+                (index === 1 && currentPage > 3) || 
+                (index === totalPages - 2 && currentPage < totalPages - 2)
+              ) {
+                return (
+                  <span 
+                    key={index}
+                    className="px-3 py-1.5 text-slate-500 flex items-center"
+                  >
+                    ...
+                  </span>
+                );
+              }
+              
+              return null;
+            })}
+            
+            <button 
+              onClick={() => paginate(currentPage + 1)}
+              className="px-3 py-1.5 bg-slate-800/70 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all text-sm"
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+            <button 
+              onClick={() => paginate(totalPages)}
+              className="px-3 py-1.5 bg-slate-800/70 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all text-sm"
+              disabled={currentPage === totalPages}
+            >
+              Last
+            </button>
+          </nav>
+        </motion.div>
       )}
 
       {/* No Results */}
       {!loading && !error && filteredCountries.length === 0 && (
-        <NoResultsState />
+        <NoResultsState resetFilters={resetFilters} />
       )}
-    </main>
+    </motion.div>
   )
 }
 
 // Helper Components
 const FilterSection = ({ icon, label, id, children }) => (
-  <div className="space-y-1 md:space-y-2">
-    <label htmlFor={id} className="text-sm font-medium text-gray-700 flex items-center gap-2">
+  <div className="space-y-2">
+    <label htmlFor={id} className="text-sm font-medium text-slate-300 flex items-center gap-2">
       {icon}
       {label}
     </label>
@@ -416,30 +712,70 @@ const FilterSection = ({ icon, label, id, children }) => (
 
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-64 space-y-4">
-    <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
-    <span className="text-gray-600 text-lg">Loading countries...</span>
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+      className="relative"
+    >
+      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 blur-md opacity-50"></div>
+      <Loader2 className="h-16 w-16 text-indigo-400 relative z-10" />
+    </motion.div>
+    <span className="text-slate-300 text-lg">Loading countries...</span>
   </div>
 )
 
 const ErrorState = ({ message }) => (
-  <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5 }}
+    className="container mx-auto bg-rose-500/10 border border-rose-500/30 p-6 rounded-xl shadow-lg"
+  >
     <div className="flex items-center space-x-3">
-      <XCircle className="h-5 w-5 text-red-500" />
-      <p className="text-red-700">{message}</p>
+      <XCircle className="h-6 w-6 text-rose-500" />
+      <p className="text-rose-400 font-medium">{message}</p>
     </div>
-  </div>
+  </motion.div>
 )
 
-const NoResultsState = () => (
-  <div className="text-center py-16 px-4">
+const NoResultsState = ({ resetFilters }) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5 }}
+    className="container mx-auto text-center py-16 px-4 border border-dashed border-slate-700 rounded-xl bg-slate-900/20 shadow-inner"
+  >
     <div className="space-y-4">
-      <SearchX className="h-16 w-16 text-gray-400 mx-auto" />
-      <h3 className="text-lg font-medium text-gray-900">No countries found</h3>
-      <p className="text-gray-500 max-w-md mx-auto">
+      <motion.div
+        animate={{ 
+          scale: [1, 1.1, 1],
+          rotate: [0, 5, -5, 0]
+        }}
+        transition={{ 
+          duration: 2,
+          repeat: Infinity,
+          repeatType: "reverse" 
+        }}
+        className="relative w-16 h-16 mx-auto"
+      >
+        <div className="absolute inset-0 bg-violet-500/20 rounded-full blur-md"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <SearchX className="h-16 w-16 text-violet-400" />
+        </div>
+      </motion.div>
+      <h3 className="text-xl font-medium text-white">No countries found</h3>
+      <p className="text-slate-400 max-w-md mx-auto">
         Try adjusting your search terms or filters to find what you're looking for.
       </p>
+      <button
+        onClick={resetFilters}
+        className="mt-4 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-lg text-white font-medium 
+          hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-300"
+      >
+        Clear filters
+      </button>
     </div>
-  </div>
+  </motion.div>
 )
 
 export default HomePage
