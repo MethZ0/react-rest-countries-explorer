@@ -1,5 +1,3 @@
-Great idea, Methush! Adding emojis can make your README more engaging and easier to scan. Here's an updated version of your README with appropriate emojis for each section:
-
 ---
 
 # 🌍 Amazing World - Countries API
