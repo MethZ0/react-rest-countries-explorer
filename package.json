@@ -16,6 +16,7 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.7.0",
     "@tailwindcss/vite": "^4.1.4",
+    "framer-motion": "^12.9.4",
     "lucide-react": "^0.488.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -50,6 +51,6 @@
     "mocha": "^11.1.0",
     "sinon": "^20.0.0",
     "vite": "^6.3.1",
-    "vitest": "^3.1.1"
+    "vitest": "^3.1.2"
   }
 }
