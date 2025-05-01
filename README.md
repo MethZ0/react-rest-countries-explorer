@@ -1,4 +1,4 @@
-# Countries Explorer
+# Amazing World - Countries API
 
 A modern web application built with React that allows users to explore countries around the world, with features like searching, filtering, and favoriting countries. The project uses Redux for state management with mock data for user authentication and favorites functionality.
 
@@ -13,9 +13,9 @@ A modern web application built with React that allows users to explore countries
 
 ## 🌐 Live Demo
 
-Visit the live application: [Countries Explorer](https://af-countries-explorer.netlify.app/)
+Visit the live application: [Amazing World](https://amazing-worlds.netlify.app/)
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/79cc6eea-dc17-4c9d-8644-7e850bc50729/deploy-status)](https://app.netlify.com/sites/af-countries-explorer/deploys)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/79cc6eea-dc17-4c9d-8644-7e850bc50729/deploy-status)](https://app.netlify.com/sites/amazing-worlds/deploys)
 
 ## Tech Stack
 
