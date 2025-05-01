@@ -109,7 +109,34 @@ describe('CountryCard Component', () => {
     );
     fireEvent.click(heartButtons[0]);
     
-    // Check if the dispatch function was called
-    expect(mockDispatch).toHaveBeenCalled();
+    // Check if the dispatch function was called with the correct action
+    expect(mockDispatch).toHaveBeenCalledTimes(1);
+    expect(mockDispatch.mock.calls[0][0].type).toBe('user/addFavoriteCountry');
+    expect(mockDispatch.mock.calls[0][0].payload).toBe('TST');
+  });
+
+  it('handles removing from favorites when already favorited', () => {
+    // Setup mock for useSelector with the country already in favorites
+    mockUseSelector.mockReturnValue({ 
+      currentUser: { favoriteCountries: ['TST'] }, 
+      isAuthenticated: true 
+    });
+    
+    render(
+      <BrowserRouter>
+        <CountryCard country={mockCountry} />
+      </BrowserRouter>
+    );
+    
+    // Find the heart button and click it
+    const heartButtons = screen.getAllByRole('button').filter(
+      button => !button.textContent.includes('View Details')
+    );
+    fireEvent.click(heartButtons[0]);
+    
+    // Check if the dispatch function was called with the correct action to remove
+    expect(mockDispatch).toHaveBeenCalledTimes(1);
+    expect(mockDispatch.mock.calls[0][0].type).toBe('user/removeFavoriteCountry');
+    expect(mockDispatch.mock.calls[0][0].payload).toBe('TST');
   });
 });
